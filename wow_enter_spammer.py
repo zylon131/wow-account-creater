@@ -24,20 +24,26 @@ WM_KEYUP   = 0x0101
 VK_RETURN  = 0x0D  # 回车键
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 EnumWindows = user32.EnumWindows
 GetWindowTextW = user32.GetWindowTextW
 GetWindowTextLengthW = user32.GetWindowTextLengthW
+GetWindowThreadProcessId = user32.GetWindowThreadProcessId
 IsWindowVisible = user32.IsWindowVisible
 IsWindow = user32.IsWindow
 PostMessageW = user32.PostMessageW
+OpenProcess = kernel32.OpenProcess
+QueryFullProcessImageNameW = kernel32.QueryFullProcessImageNameW
+CloseHandle = kernel32.CloseHandle
 
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
 
 # ═══════════════════════════════════════════════════════════
 # 默认配置（支持通过命令行参数覆盖）
 # ═══════════════════════════════════════════════════════════
-MIN_DELAY_MS = 650    # 每次按键最小间隔（毫秒）
-MAX_DELAY_MS = 1850   # 每次按键最大间隔（毫秒）
+MIN_DELAY_MS = 1800   # 每次按键最小间隔（毫秒）
+MAX_DELAY_MS = 3500   # 每次按键最大间隔（毫秒）
 MIN_HOLD_MS  = 35     # 按键按下到抬起的最短时长（毫秒）
 MAX_HOLD_MS  = 95     # 按键按下到抬起的最长时长（毫秒）
 PAUSE_CHANCE = 0.06   # 每次循环有 6% 概率触发短暂“人工停顿”（2~4.5秒）
@@ -45,13 +51,17 @@ PAUSE_CHANCE = 0.06   # 每次循环有 6% 概率触发短暂“人工停顿”�
 HOTKEY_TOGGLE = "f6"  # 开始/暂停热键
 HOTKEY_EXIT = "f7"    # 退出热键
 
-# 魔兽世界窗口标题关键词（已适配国服与国际服）
-WOW_TITLES = [
+# 魔兽世界窗口标题与进程名（已适配国服与国际服）
+WOW_EXACT_TITLES = {
     "魔兽世界",
     "World of Warcraft",
-    "Wow",
-    "WoW",
-]
+}
+WOW_PROCESS_NAMES = {
+    "wow.exe",
+    "wowclassic.exe",
+    "wowt.exe",
+    "wowb.exe",
+}
 
 
 class WoWEnterSpammer:
@@ -70,6 +80,24 @@ class WoWEnterSpammer:
         self.total_sent = 0
         self.lock = threading.Lock()
 
+    def _get_process_name(self, hwnd: int) -> str:
+        """获取窗口所属进程的可执行文件名（小写）。"""
+        pid = ctypes.wintypes.DWORD()
+        GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if not pid.value:
+            return ""
+        handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+        if not handle:
+            return ""
+        try:
+            size = ctypes.wintypes.DWORD(512)
+            buff = ctypes.create_unicode_buffer(size.value)
+            if QueryFullProcessImageNameW(handle, 0, buff, ctypes.byref(size)):
+                return buff.value.rsplit("\\", 1)[-1].lower()
+            return ""
+        finally:
+            CloseHandle(handle)
+
     def find_wow_window(self) -> tuple[int | None, str]:
         """遍历所有可见窗口，查找魔兽世界客户端窗口句柄。"""
         found_hwnd = None
@@ -86,13 +114,13 @@ class WoWEnterSpammer:
 
             buff = ctypes.create_unicode_buffer(length + 1)
             GetWindowTextW(hwnd, buff, length + 1)
-            title = buff.value
+            title = buff.value.strip()
 
-            for wow_title in WOW_TITLES:
-                if wow_title.lower() in title.lower():
-                    found_hwnd = hwnd
-                    found_title = title
-                    return False  # 找到后停止枚举
+            proc_name = self._get_process_name(hwnd)
+            if proc_name in WOW_PROCESS_NAMES or (not proc_name and title in WOW_EXACT_TITLES):
+                found_hwnd = hwnd
+                found_title = title
+                return False  # 找到后停止枚举
             return True
 
         EnumWindows(WNDENUMPROC(enum_callback), 0)

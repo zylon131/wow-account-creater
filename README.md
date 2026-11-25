@@ -1,35 +1,51 @@
-# WoW Faction Bypass / Background Auto-Clicker
+# 魔兽世界后台抢号回车助手
 
-A background enter-spammer to bypass the World of Warcraft "Faction Currently Unavailable" (population imbalance) lock during character creation.
+用于在魔兽世界角色创建界面突破阵营锁定（服务器阵营人数不平衡限制）的后台自动回车脚本。
 
-Instead of hijacking your mouse or keyboard like a basic macro, this script uses the Win32 API (`PostMessageW`) to send keystrokes directly to the WoW window. You can alt-tab, watch YouTube, or write code while the script fights the faction lock in the background.
+脚本通过 Win32 API（`PostMessageW`）直接向魔兽世界客户端进程窗口投递按键消息，**不占用你的鼠标和键盘**，开启后可正常切屏看视频、浏览网页或处理其他事务。
 
-## Setup
+## 功能特点
 
-Requires Python 3. 
-Install the required keyboard hook dependency:
+- **精确进程匹配**：自动识别 `wow.exe`、`wowclassic.exe`、`wowt.exe`、`wowb.exe` 等魔兽世界客户端进程，避免误绑定到浏览器或命令行窗口。
+- **随机化拟人节奏**：
+  - 默认发送间隔为 **`1800ms ~ 3500ms`**（三角分布随机）
+  - 按键按下到抬起时长随机化（`35ms ~ 95ms`）
+  - 6% 概率触发短暂人工停顿（额外增加 `1.5s ~ 3.5s`）
+- **全局快捷键控制**：支持后台随时启停与退出。
+
+## 环境准备
+
+需要 Python 3（Windows），并安装 `keyboard` 依赖：
+
 ```bash
 pip install keyboard
 ```
 
-## Usage
+## 使用方法
 
-You must run this script as **Administrator** because the `keyboard` module requires global hook privileges in Windows to register the background hotkeys.
+由于 Windows 权限隔离机制，请**以管理员身份**打开终端运行本脚本：
 
 ```bash
 python wow_enter_spammer.py
 ```
 
-**Hotkeys:**
-* **F6** - Start / Pause spamming
-* **F7** - Exit script completely
+### 快捷键
 
-**Custom Delay:**
-By default, it sends an input every 500ms. You can adjust this via arguments:
+- **`F6`**：开始 / 暂停
+- **`F7`**：退出脚本
+
+### 自定义间隔参数
+
+支持通过命令行参数调整发送间隔（单位：毫秒）：
+
 ```bash
-python wow_enter_spammer.py --delay 300
+# 指定最小与最大随机间隔（例如 3000ms ~ 5000ms）
+python wow_enter_spammer.py --min-delay 3000 --max-delay 5000
+
+# 或指定一个基准延迟，自动围绕该值浮动（0.6x ~ 1.6x）
+python wow_enter_spammer.py --delay 2500
 ```
 
-## Disclaimer
-Automating inputs violates Blizzard's ToS. Use at your own risk.
-<img width="2560" height="1440" alt="image" src="https://github.com/user-attachments/assets/33e90e68-4e87-4635-8a43-780ab5daf2b6" />
+## 注意事项
+
+自动化操作可能违反游戏服务条款，请自行评估风险。
